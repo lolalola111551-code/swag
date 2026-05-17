@@ -459,11 +459,9 @@
 <div class="copy-ok" id="copyOk">✓ Скопировано</div>
 
 <script>
-// ── ВСТАВЬ СВОЙ КЛЮЧ СЮДА ──────────────────────────────────
-const API_KEY = '69149e32135e418b84c7d8ae836f9533.o_zNaeCRAEiqOKrkYlzRfWrN';
-// ──────────────────────────────────────────────────────────
+// Ключ хранится на сервере — здесь его нет
 const MODEL   = 'cogito-2.1:671b-cloud';
-const API_URL = 'http://localhost:3000/api/chat';
+const API_URL = '/api/chat';
 
 let direction = 'ru-en';
 let isLoading = false;
@@ -493,7 +491,7 @@ async function translate() {
   try {
     const resp = await fetch(API_URL, {
       method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':`Bearer ${API_KEY}`},
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({ model:MODEL, messages:[{role:'system',content:buildPrompt()},{role:'user',content:src}], temperature:0.3, stream:false })
     });
     if (!resp.ok) { const e = await resp.text(); throw new Error(`HTTP ${resp.status}: ${e.slice(0,200)}`); }

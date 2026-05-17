@@ -1,4 +1,4 @@
-// LINGUA — локальный прокси-сервер для Ollama API
+// LINGUA — прокси-сервер для Ollama API
 // Запуск: node server.js
 // Требует: Node.js 18+
 
@@ -8,7 +8,18 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+const HOST = '0.0.0.0';
+
+// ─── API КЛЮЧ — только на сервере, не в браузере ──────────
+// На хостинге: задай переменную окружения OLLAMA_API_KEY
+// Локально: OLLAMA_API_KEY=твой_ключ node server.js
+const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY || '';
+
+if (!OLLAMA_API_KEY) {
+  console.warn('⚠️  ВНИМАНИЕ: переменная OLLAMA_API_KEY не задана!');
+}
+
 const OLLAMA_API_HOST = 'ollama.com';
 const OLLAMA_API_PATH = '/api/chat';
 
@@ -26,10 +37,10 @@ const MIME = {
 const server = http.createServer((req, res) => {
   const parsed = url.parse(req.url);
 
-  // CORS headers — нужны для запросов из браузера
+  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
@@ -37,7 +48,8 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ─── PROXY /api/chat → Ollama cloud ───────────────────
+  // ─── PROXY /api/chat → Ollama ────────────────────────────
+  // Ключ НЕ принимается от клиента — всегда используем серверный
   if (req.method === 'POST' && parsed.pathname === '/api/chat') {
     let body = '';
     req.on('data', chunk => body += chunk);
@@ -49,9 +61,6 @@ const server = http.createServer((req, res) => {
         return;
       }
 
-      // Достаём Authorization из запроса браузера
-      const authHeader = req.headers['authorization'] || '';
-
       const postData = Buffer.from(JSON.stringify(payload));
       const options = {
         hostname: OLLAMA_API_HOST,
@@ -60,14 +69,13 @@ const server = http.createServer((req, res) => {
         headers: {
           'Content-Type': 'application/json',
           'Content-Length': postData.length,
-          'Authorization': authHeader,
+          // Ключ подставляется с сервера — клиент его никогда не видит
+          'Authorization': `Bearer ${OLLAMA_API_KEY}`,
         },
       };
 
       const proxyReq = https.request(options, (proxyRes) => {
-        res.writeHead(proxyRes.statusCode, {
-          'Content-Type': 'application/json',
-        });
+        res.writeHead(proxyRes.statusCode, { 'Content-Type': 'application/json' });
         proxyRes.pipe(res);
       });
 
@@ -99,19 +107,8 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log('');
-  console.log('  ██╗     ██╗███╗   ██╗ ██████╗ ██╗   ██╗ █████╗ ');
-  console.log('  ██║     ██║████╗  ██║██╔════╝ ██║   ██║██╔══██╗');
-  console.log('  ██║     ██║██╔██╗ ██║██║  ███╗██║   ██║███████║');
-  console.log('  ██║     ██║██║╚██╗██║██║   ██║██║   ██║██╔══██║');
-  console.log('  ███████╗██║██║ ╚████║╚██████╔╝╚██████╔╝██║  ██║');
-  console.log('  ╚══════╝╚═╝╚═╝  ╚═══╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝');
-  console.log('');
-  console.log(`  Сервер запущен → http://localhost:${PORT}`);
-  console.log(`  Прокси: /api/chat → https://${OLLAMA_API_HOST}${OLLAMA_API_PATH}`);
-  console.log('');
-  console.log('  Открой в браузере: http://localhost:3000');
-  console.log('  Останови: Ctrl+C');
-  console.log('');
+server.listen(PORT, HOST, () => {
+  console.log(`Сервер запущен → http://${HOST}:${PORT}`);
+  console.log(`Прокси: /api/chat → https://${OLLAMA_API_HOST}${OLLAMA_API_PATH}`);
+  console.log(`API ключ: ${OLLAMA_API_KEY ? '✓ задан' : '✗ НЕ задан (задай OLLAMA_API_KEY)'}`);
 });
